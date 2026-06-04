@@ -1,6 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
-import { getAllClients } from '@/lib/clients.config'
+import { getAllClients } from '@/lib/db/queries'
 import { cn } from '@/lib/utils'
 import { ArrowRight } from 'lucide-react'
 
@@ -20,8 +20,8 @@ function getAvatarColor(name: string) {
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
 }
 
-export default function DashboardPage() {
-  const clients = getAllClients()
+export default async function DashboardPage() {
+  const clients = await getAllClients()
 
   return (
     <>
@@ -43,13 +43,21 @@ export default function DashboardPage() {
           >
             {/* Avatar / Logo */}
             {client.logoUrl ? (
-              <Image
-                src={client.logoUrl}
-                alt={client.name}
-                width={40}
-                height={40}
-                className="h-10 w-10 shrink-0 rounded-lg object-cover"
-              />
+              <span className={cn(
+                'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg overflow-hidden',
+                client.slug === 'avenue-z' ? 'bg-black p-1.5' : ''
+              )}>
+                <Image
+                  src={client.logoUrl}
+                  alt={client.name}
+                  width={40}
+                  height={40}
+                  className={cn(
+                    'shrink-0',
+                    client.slug === 'avenue-z' ? 'h-7 w-7 object-contain' : 'h-10 w-10 rounded-lg object-cover'
+                  )}
+                />
+              </span>
             ) : (
               <span className={cn(
                 'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-base font-bold',

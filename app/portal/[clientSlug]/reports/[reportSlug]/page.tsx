@@ -1,6 +1,9 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
-import { getClientBySlug } from '@/lib/clients.config'
+import { cookies } from 'next/headers'
+import { auth } from '@/auth'
+import { getClientBySlug } from '@/lib/db/queries'
+import { resolveDemoMode } from '@/lib/demo-data/resolve'
 import { REPORT_NAMES } from '@/lib/constants'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
 import { ExecSummary } from '@/components/report-sections/exec-summary'
@@ -16,6 +19,10 @@ import { ShopifyPerformanceReport } from '@/components/report-sections/shopify-p
 import { HubSpotPerformanceReport } from '@/components/report-sections/hubspot-performance'
 import { RedditAdsReport } from '@/components/report-sections/reddit-ads'
 import { BingAdsReport } from '@/components/report-sections/bing-ads'
+import { DemandOverviewReport } from '@/components/report-sections/demand-overview'
+import { PeecAIReport } from '@/components/report-sections/peec-ai'
+import { InboundFunnelReport } from '@/components/report-sections/inbound-funnel'
+import { RequestAReportReport } from '@/components/report-sections/request-a-report'
 import { PortalReportDateRange } from './report-date-range'
 
 function ReportSkeleton() {
@@ -34,34 +41,49 @@ function ReportSkeleton() {
   )
 }
 
-function getReportSection(reportSlug: string, clientSlug: string, dateRange: string) {
+function getReportSection(
+  reportSlug: string,
+  clientSlug: string,
+  dateRange: string,
+  compareRange: string | null,
+  submittedBy: string | undefined,
+  demoMode: boolean,
+) {
   switch (reportSlug) {
     case 'exec-summary':
-      return <ExecSummary clientSlug={clientSlug} dateRange={dateRange} />
+      return <ExecSummary clientSlug={clientSlug} />
     case 'ga4':
-      return <GA4Report clientSlug={clientSlug} dateRange={dateRange} />
+      return <GA4Report clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
     case 'meta-ads':
-      return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <MetaAdsReport clientSlug={clientSlug} />
     case 'google-ads':
-      return <GoogleAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <GoogleAdsReport clientSlug={clientSlug} />
     case 'email-marketing':
-      return <EmailMarketingReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <EmailMarketingReport clientSlug={clientSlug} />
     case 'blended-performance':
-      return <BlendedPerformanceReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <BlendedPerformanceReport clientSlug={clientSlug} />
     case 'linkedin-ads':
-      return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <LinkedInAdsReport clientSlug={clientSlug} />
     case 'snapchat-ads':
-      return <SnapchatAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <SnapchatAdsReport clientSlug={clientSlug} />
     case 'tiktok-ads':
-      return <TikTokAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <TikTokAdsReport clientSlug={clientSlug} />
     case 'shopify-performance':
-      return <ShopifyPerformanceReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <ShopifyPerformanceReport clientSlug={clientSlug} />
     case 'hubspot-performance':
-      return <HubSpotPerformanceReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <HubSpotPerformanceReport clientSlug={clientSlug} />
     case 'reddit-ads':
-      return <RedditAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <RedditAdsReport clientSlug={clientSlug} />
     case 'bing-ads':
-      return <BingAdsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <BingAdsReport clientSlug={clientSlug} />
+    case 'demand-overview':
+      return <DemandOverviewReport clientSlug={clientSlug} />
+    case 'peec-ai':
+      return <PeecAIReport clientSlug={clientSlug} demoMode={demoMode} />
+    case 'inbound-funnel':
+      return <InboundFunnelReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+    case 'request-a-report':
+      return <RequestAReportReport clientSlug={clientSlug} submittedBy={submittedBy} />
     default:
       return null
   }
@@ -72,19 +94,28 @@ export default async function PortalReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string; reportSlug: string }>
-  searchParams: Promise<{ dateRange?: string }>
+  searchParams: Promise<{ dateRange?: string; compareRange?: string }>
 }) {
   const { clientSlug, reportSlug } = await params
-  const { dateRange: dateRangeParam } = await searchParams
-  const client = getClientBySlug(clientSlug)
+  const { dateRange: dateRangeParam, compareRange: compareRangeParam } = await searchParams
+  const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
   if (!client.enabledReports.includes(reportSlug as typeof client.enabledReports[number])) {
     notFound()
   }
 
+  const session = await auth()
+  const submittedBy = session?.user?.email ?? undefined
+  const cookieStore = await cookies()
+  const demoMode = resolveDemoMode({
+    userDemoFlag: session?.user?.demoMode === true,
+    cookieValue:  cookieStore.get('demoMode')?.value,
+  })
+
   const reportName = REPORT_NAMES[reportSlug] ?? reportSlug
   const dateRange = dateRangeParam ?? 'last_30_days'
+  const compareRange = compareRangeParam ?? null
 
   return (
     <div className="mx-auto max-w-6xl px-8 py-12">
@@ -97,14 +128,16 @@ export default async function PortalReportPage({
             {reportName}
           </h1>
         </div>
-        <PortalReportDateRange value={dateRange} />
+        <Suspense fallback={null}>
+          <PortalReportDateRange value={dateRange} />
+        </Suspense>
       </div>
 
       <div className="divider-full mb-8" />
 
       <ReportErrorBoundary sectionName={reportName}>
         <Suspense fallback={<ReportSkeleton />}>
-          {getReportSection(reportSlug, clientSlug, dateRange)}
+          {getReportSection(reportSlug, clientSlug, dateRange, compareRange, submittedBy, demoMode)}
         </Suspense>
       </ReportErrorBoundary>
     </div>

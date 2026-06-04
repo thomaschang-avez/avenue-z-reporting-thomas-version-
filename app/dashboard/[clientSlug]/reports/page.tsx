@@ -1,28 +1,28 @@
 import { Suspense } from 'react'
 import { notFound } from 'next/navigation'
-import { getClientBySlug } from '@/lib/clients.config'
+import { cookies } from 'next/headers'
+import { auth } from '@/auth'
+import { getClientBySlug } from '@/lib/db/queries'
+import { resolveDemoMode } from '@/lib/demo-data/resolve'
 import { REPORT_NAMES } from '@/lib/constants'
-import { Header } from '@/components/layout/header'
+import { StickyReportHeader } from '@/components/layout/sticky-report-header'
 import { ReportErrorBoundary } from '@/components/report-sections/error-boundary'
-import { ExecSummary } from '@/components/report-sections/exec-summary'
 import { GA4Report } from '@/components/report-sections/ga4'
-import { MetaAdsReport } from '@/components/report-sections/meta-ads'
-import { GoogleAdsReport } from '@/components/report-sections/google-ads'
-import { EmailMarketingReport } from '@/components/report-sections/email-marketing'
-import { BlendedPerformanceReport } from '@/components/report-sections/blended-performance'
-import { LinkedInAdsReport } from '@/components/report-sections/linkedin-ads'
-import { SnapchatAdsReport } from '@/components/report-sections/snapchat-ads'
-import { TikTokAdsReport } from '@/components/report-sections/tiktok-ads'
-import { ShopifyPerformanceReport } from '@/components/report-sections/shopify-performance'
+import { ConversionJourneyReport } from '@/components/report-sections/ga4/conversion-journey'
+import { GoogleSearchConsoleReport } from '@/components/report-sections/google-search-console'
 import { HubSpotPerformanceReport } from '@/components/report-sections/hubspot-performance'
-import { RedditAdsReport } from '@/components/report-sections/reddit-ads'
-import { BingAdsReport } from '@/components/report-sections/bing-ads'
-import { ConversationalSummary } from '@/components/report-sections/conversational-summary'
-import { FFCIReport } from '@/components/report-sections/ffci'
-import { TikTokShopReport } from '@/components/report-sections/tiktok-shop'
-import { PRPlacementsReport } from '@/components/report-sections/pr-placements'
-import { ReportDateRange } from './[reportSlug]/report-date-range'
-import type { ReportSlug } from '@/lib/clients.config'
+import { InboundFunnelReport } from '@/components/report-sections/inbound-funnel'
+import { PeecAIReport } from '@/components/report-sections/peec-ai'
+import { PRInfluenceReport } from '@/components/report-sections/peec-ai/pr-influence'
+import { ContentImpactReport } from '@/components/report-sections/peec-ai/content-impact'
+import { TechnicalAuditReport } from '@/components/report-sections/peec-ai/technical-audit'
+import { DemandOverviewReport } from '@/components/report-sections/demand-overview'
+import { AISummariesReport } from '@/components/report-sections/ai-summaries'
+import { ReportGeneratorReport } from '@/components/report-sections/report-generator'
+import { RequestAReportReport } from '@/components/report-sections/request-a-report'
+import type { SummaryPeriod } from '@/components/report-sections/ai-summaries/period-selector'
+import { GA4DatePicker } from '@/components/report-sections/ga4/date-picker'
+import type { ReportSlug } from '@/lib/db/schema'
 
 function SectionSkeleton() {
   return (
@@ -40,43 +40,63 @@ function SectionSkeleton() {
   )
 }
 
-function getReportComponent(slug: ReportSlug, clientSlug: string, dateRange: string) {
+function getReportComponent(
+  slug: ReportSlug,
+  clientSlug: string,
+  dateRange: string,
+  compareRange: string | null,
+  subsection?: string,
+  period?: SummaryPeriod,
+  submittedBy?: string,
+  demoMode?: boolean,
+) {
   switch (slug) {
-    case 'exec-summary':
-      return <ExecSummary clientSlug={clientSlug} dateRange={dateRange} />
+    case 'request-a-report':
+      return <RequestAReportReport clientSlug={clientSlug} submittedBy={submittedBy} />
+    case 'ai-summaries':
+      return <AISummariesReport clientSlug={clientSlug} period={period} />
+    case 'report-generator':
+      return <ReportGeneratorReport clientSlug={clientSlug} />
+    case 'demand-overview':
+      return <DemandOverviewReport clientSlug={clientSlug} />
     case 'ga4':
-      return <GA4Report clientSlug={clientSlug} dateRange={dateRange} />
-    case 'meta-ads':
-      return <MetaAdsReport clientSlug={clientSlug} dateRange={dateRange} />
-    case 'google-ads':
-      return <GoogleAdsReport clientSlug={clientSlug} dateRange={dateRange} />
-    case 'email-marketing':
-      return <EmailMarketingReport clientSlug={clientSlug} dateRange={dateRange} />
-    case 'blended-performance':
-      return <BlendedPerformanceReport clientSlug={clientSlug} dateRange={dateRange} />
-    case 'linkedin-ads':
-      return <LinkedInAdsReport clientSlug={clientSlug} dateRange={dateRange} />
-    case 'snapchat-ads':
-      return <SnapchatAdsReport clientSlug={clientSlug} dateRange={dateRange} />
-    case 'tiktok-ads':
-      return <TikTokAdsReport clientSlug={clientSlug} dateRange={dateRange} />
-    case 'shopify-performance':
-      return <ShopifyPerformanceReport clientSlug={clientSlug} dateRange={dateRange} />
+      if (subsection === 'conversion-journey') {
+        return <ConversionJourneyReport clientSlug={clientSlug} dateRange={dateRange} />
+      }
+      if (subsection === 'search-console') {
+        return <GoogleSearchConsoleReport clientSlug={clientSlug} />
+      }
+      return <GA4Report clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} />
+    case 'google-search-console':
+      return <GoogleSearchConsoleReport clientSlug={clientSlug} />
     case 'hubspot-performance':
-      return <HubSpotPerformanceReport clientSlug={clientSlug} dateRange={dateRange} />
-    case 'reddit-ads':
-      return <RedditAdsReport clientSlug={clientSlug} dateRange={dateRange} />
-    case 'bing-ads':
-      return <BingAdsReport clientSlug={clientSlug} dateRange={dateRange} />
-    case 'conversational-summary':
-      return <ConversationalSummary clientSlug={clientSlug} dateRange={dateRange} />
-    case 'ffci':
-      return <FFCIReport clientSlug={clientSlug} dateRange={dateRange} />
-    case 'tiktok-shop':
-      return <TikTokShopReport clientSlug={clientSlug} dateRange={dateRange} />
-    case 'pr-placements':
-      return <PRPlacementsReport clientSlug={clientSlug} dateRange={dateRange} />
+      return <HubSpotPerformanceReport clientSlug={clientSlug} />
+    case 'inbound-funnel':
+      return <InboundFunnelReport clientSlug={clientSlug} dateRange={dateRange} compareRange={compareRange} subsection={subsection} />
+    case 'peec-ai':
+      if (subsection === 'pr-influence')    return <PRInfluenceReport clientSlug={clientSlug} dateRange={dateRange} demoMode={demoMode} />
+      if (subsection === 'content-impact')  return <ContentImpactReport clientSlug={clientSlug} demoMode={demoMode} />
+      if (subsection === 'technical-audit') return <TechnicalAuditReport clientSlug={clientSlug} demoMode={demoMode} />
+      return <PeecAIReport clientSlug={clientSlug} demoMode={demoMode} />
+    default:
+      return null
   }
+}
+
+const GA4_SUBSECTION_NAMES: Record<string, string> = {
+  'conversion-journey': 'Conversion Journey',
+  'search-console':     'Search Console',
+}
+
+const INBOUND_FUNNEL_SUBSECTION_NAMES: Record<string, string> = {
+  'forms':  'Forms',
+  'pacing': 'Pacing',
+}
+
+const AEO_SUBSECTION_NAMES: Record<string, string> = {
+  'pr-influence':    'PR Influence',
+  'content-impact':  'Content Impact',
+  'technical-audit': 'Technical Performance',
 }
 
 export default async function ReportPage({
@@ -84,35 +104,61 @@ export default async function ReportPage({
   searchParams,
 }: {
   params: Promise<{ clientSlug: string }>
-  searchParams: Promise<{ dateRange?: string; section?: string }>
+  searchParams: Promise<{ section?: string; subsection?: string; dateRange?: string; compareRange?: string; period?: string }>
 }) {
   const { clientSlug } = await params
-  const { dateRange: dateRangeParam, section } = await searchParams
-  const client = getClientBySlug(clientSlug)
+  const { section, subsection, dateRange: dateRangeParam, compareRange: compareRangeParam, period: periodParam } = await searchParams
+  const client = await getClientBySlug(clientSlug)
   if (!client) notFound()
 
-  const dateRange = dateRangeParam ?? 'last_30_days'
+  const session = await auth()
+  const submittedBy = session?.user?.email ?? undefined
+  // See lib/demo-data/resolve.ts for the resolution rules. Demo mode
+  // is strictly gated by users.demoMode; the sidebar toggle's cookie
+  // can only turn it off, not on.
+  const cookieStore = await cookies()
+  const demoMode = resolveDemoMode({
+    userDemoFlag: session?.user?.demoMode === true,
+    cookieValue:  cookieStore.get('demoMode')?.value,
+  })
 
-  // Default to first enabled report, or use the section param if valid
   const activeSection = (
     client.enabledReports.includes(section as ReportSlug)
       ? section
       : client.enabledReports[0]
   ) as ReportSlug
 
-  const reportName = REPORT_NAMES[activeSection] ?? activeSection
+  const dateRange    = dateRangeParam  ?? 'last_30_days'
+  const compareRange = compareRangeParam ?? null
+  const period       = (['weekly', 'monthly', 'quarterly'].includes(periodParam ?? '')
+    ? periodParam
+    : 'monthly') as SummaryPeriod
+
+  // Title: subsection name takes precedence, then section name
+  const pageTitle =
+    (activeSection === 'ga4' && subsection && GA4_SUBSECTION_NAMES[subsection])
+      ? GA4_SUBSECTION_NAMES[subsection]
+    : (activeSection === 'inbound-funnel' && subsection && INBOUND_FUNNEL_SUBSECTION_NAMES[subsection])
+      ? INBOUND_FUNNEL_SUBSECTION_NAMES[subsection]
+    : (activeSection === 'peec-ai' && subsection && AEO_SUBSECTION_NAMES[subsection])
+      ? AEO_SUBSECTION_NAMES[subsection]
+    : (REPORT_NAMES[activeSection] ?? activeSection)
 
   return (
     <>
-      <Header title={reportName} subtitle={client.name}>
-        <ReportDateRange value={dateRange} />
-      </Header>
+      <StickyReportHeader title={pageTitle} subtitle={client.name} logoUrl={client.logoUrl ?? undefined}>
+        {(activeSection === 'ga4' || activeSection === 'inbound-funnel') && subsection !== 'pacing' && subsection !== 'search-console' && (
+          <Suspense fallback={null}>
+            <GA4DatePicker dateRange={dateRange} compareRange={compareRange} />
+          </Suspense>
+        )}
+      </StickyReportHeader>
 
-      <div className="divider-full mb-8" />
+      <div className="h-8" />
 
-      <ReportErrorBoundary sectionName={reportName}>
+      <ReportErrorBoundary sectionName={pageTitle}>
         <Suspense fallback={<SectionSkeleton />}>
-          {getReportComponent(activeSection, clientSlug, dateRange)}
+          {getReportComponent(activeSection, clientSlug, dateRange, compareRange, subsection, period, submittedBy, demoMode)}
         </Suspense>
       </ReportErrorBoundary>
     </>
